@@ -6,7 +6,6 @@ AI responses to user messages.
 """
 
 import os
-from typing import Optional
 import openai
 from dotenv import load_dotenv
 
