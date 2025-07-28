@@ -1,15 +1,20 @@
 @echo off
+TITLE WhatsApp Bot - LOCAL TEST
 
-echo Checking for virtual environment...
-if not exist "venv" (
+IF NOT EXIST venv (
     echo Creating virtual environment...
     python -m venv venv
 )
 
-echo Installing dependencies, this may take a moment...
-.\venv\Scripts\pip.exe install -r backend/requirements.txt
+echo Activating virtual environment and installing dependencies...
+call .\venv\Scripts\activate.bat
+pip install -r backend\requirements.txt
 
-echo Starting the server...
-.\venv\Scripts\uvicorn.exe backend.app:app --host 0.0.0.0 --port 8000
+echo ---
+echo Starting local server on http://localhost:8000
+echo This will NOT connect to Twilio unless you run ngrok separately.
+echo This is for local testing of the API logic.
+echo ---
 
+python backend/app.py
 pause 

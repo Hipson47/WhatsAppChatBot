@@ -3,4 +3,5 @@ uvicorn[standard]
 twilio
 openai
 python-dotenv
-python-multipart 
+python-multipart
+requests 

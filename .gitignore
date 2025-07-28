@@ -4,6 +4,9 @@
 .env.*
 !.env.example
 
+# Ignore configuration directory containing service account keys and sensitive config files.
+config/
+
 # --- Python ---
 # Ignore virtual environment directories.
 venv/
