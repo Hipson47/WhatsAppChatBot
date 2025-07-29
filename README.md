@@ -25,7 +25,7 @@ A powerful, locally-run application that enables anyone to create their own inte
 - **Cloud Deployment:** Google Cloud Run with CI/CD pipeline
 - **Development:** Hot-reload development server with comprehensive logging
 
-## 📋 Prerequisites
+## 📋   Prerequisites
 
 Before getting started, ensure you have the following installed on your machine:
 
@@ -61,7 +61,7 @@ cd WhatsAppChatBot
    ```
 
 ### Step 3: Prepare Your Knowledge Base
-1. Create a `documents` folder in the project root:
+1. Create a `documents` folder in the project root: 
    ```bash
    mkdir documents
    ```
@@ -94,7 +94,7 @@ start.bat
 
 3. **Monitor Activity:**
    - Check the console output to see incoming messages and bot responses
-   - All interactions are logged for debugging and monitoring
+   - All interactions are logged for debugging and monitoring xd
 
 ## 🗺️ Project Roadmap
 
