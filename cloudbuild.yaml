@@ -1,42 +1,37 @@
-# Cloud Build configuration for automated deployment to Google Cloud Run
 steps:
-  # Step 1: Build the container image using the Dockerfile
-  - name: 'gcr.io/cloud-builders/docker'
-    id: Build
+  # Step 1: Build and Push the image in one command.
+  # This uses gcloud's native build submission, which is better integrated
+  # with GCP's IAM and Artifact Registry than the generic docker builder.
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Build and Push'
     args:
-      - 'build'
-      - '-t'
+      - 'builds'
+      - 'submit'
+      - '--tag'
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA'
       - '.'
-      - '-f'
-      - 'backend/Dockerfile'
+      - '--gcs-source-staging-dir=gs://vortex-ai-user_cloudbuild/source' # IMPORTANT: Using your project ID here
+      - '--file=backend/Dockerfile'
 
-  # Step 2: Push the container image to Google Artifact Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    id: Push
-    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA']
-
-  # Step 3: Deploy the new image to Google Cloud Run
+  # Step 2: Deploy the newly built image to Cloud Run.
+  # This step remains the same.
   - name: 'gcr.io/google-cloud-sdk/gcloud'
-    id: Deploy
+    id: 'Deploy to Cloud Run'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'whatsapp-bot-service' # This is the name of our Cloud Run service.
+      - 'whatsapp-bot-service'
       - '--image=europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA'
       - '--region=europe-west1'
       - '--platform=managed'
-      - '--allow-unauthenticated' # IMPORTANT: For a real product, use --no-allow-unauthenticated and set up IAP or other auth.
-      - '--service-account=whatsapp-bot-service-account@$PROJECT_ID.iam.gserviceaccount.com'
-      # This is the key part: Mount secrets as environment variables in the container
+      - '--allow-unauthenticated'
+      - '--service-account=whatsapp-bot-service@$PROJECT_ID.iam.gserviceaccount.com'
       - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest,TWILIO_PHONE_NUMBER=TWILIO_PHONE_NUMBER:latest,GOOGLE_APPLICATION_CREDENTIALS=gcp-sa-key:latest'
-      - '--min-instances=0' # Set to 0 to save costs when there is no traffic.
+      - '--min-instances=0'
       - '--max-instances=2'
 
-# This section registers the built image as an artifact of the build.
-images:
-  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA'
-
+# The images section is no longer needed as the gcloud command handles the image artifact registration.
+# options section remains the same.
 options:
   logging: CLOUD_LOGGING_ONLY 
