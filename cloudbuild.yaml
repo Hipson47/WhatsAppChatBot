@@ -1,6 +1,6 @@
+# Cloud Build configuration for automated deployment to Google Cloud Run
 steps:
-  # Step 1: Build the container image using the Dockerfile in the 'backend' directory.
-  # The image is tagged with the commit SHA for traceability.
+  # Step 1: Build the container image using the Dockerfile
   - name: 'gcr.io/cloud-builders/docker'
     id: Build
     args:
@@ -11,12 +11,12 @@ steps:
       - '-f'
       - 'backend/Dockerfile'
 
-  # Step 2: Push the container image to Google Artifact Registry.
+  # Step 2: Push the container image to Google Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: Push
     args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA']
 
-  # Step 3: Deploy the new image to Google Cloud Run.
+  # Step 3: Deploy the new image to Google Cloud Run
   - name: 'gcr.io/google-cloud-sdk/gcloud'
     id: Deploy
     entrypoint: gcloud
@@ -27,10 +27,11 @@ steps:
       - '--image=europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA'
       - '--region=europe-west1'
       - '--platform=managed'
-      - '--allow-unauthenticated'
+      - '--allow-unauthenticated' # IMPORTANT: For a real product, use --no-allow-unauthenticated and set up IAP or other auth.
       - '--service-account=whatsapp-bot-service-account@$PROJECT_ID.iam.gserviceaccount.com'
+      # This is the key part: Mount secrets as environment variables in the container
       - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest,TWILIO_PHONE_NUMBER=TWILIO_PHONE_NUMBER:latest,GOOGLE_APPLICATION_CREDENTIALS=gcp-sa-key:latest'
-      - '--min-instances=0' # Set to 0 to save costs when not in use.
+      - '--min-instances=0' # Set to 0 to save costs when there is no traffic.
       - '--max-instances=2'
 
 # This section registers the built image as an artifact of the build.
