@@ -8,7 +8,7 @@ through Twilio integration with proper validation and error handling.
 from fastapi import FastAPI, Request, Response, Form, HTTPException
 from pydantic import BaseModel
 from twilio.twiml.messaging_response import MessagingResponse
-from backend.openai_client import get_ai_response
+from openai_client import get_ai_response
 import logging
 
 # Configure logging
