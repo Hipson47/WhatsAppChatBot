@@ -18,7 +18,7 @@ steps:
     args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA']
 
   # Step 3: Deploy the new image version to Cloud Run
-  - name: 'gcr.io/google-cloud-sdk/gcloud'
+  - name: 'gcr.io/cloud-builders/gcloud'
     id: Deploy
     entrypoint: gcloud
     args:
