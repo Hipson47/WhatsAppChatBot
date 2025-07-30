@@ -6,14 +6,18 @@ AI responses to user messages.
 """
 
 import os
+import logging
 import openai
 from dotenv import load_dotenv
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 
 
-async def get_ai_response(user_prompt: str) -> str:
+async def get_ai_response(user_prompt: str, max_tokens: int = 150) -> str:
     """
     Generate an AI response using OpenAI's GPT-4o-mini model.
     
@@ -22,6 +26,7 @@ async def get_ai_response(user_prompt: str) -> str:
     
     Args:
         user_prompt (str): The user's message to generate a response for.
+        max_tokens (int): Maximum number of tokens in the response.
         
     Returns:
         str: The AI-generated response content.
@@ -45,7 +50,7 @@ async def get_ai_response(user_prompt: str) -> str:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            max_tokens=150,
+            max_tokens=max_tokens,
             temperature=0.7
         )
         
@@ -54,21 +59,17 @@ async def get_ai_response(user_prompt: str) -> str:
         return ai_response if ai_response else "I'm sorry, I couldn't generate a response."
         
     except openai.APIError as e:
-        error_message = f"OpenAI API error: {str(e)}"
-        print(error_message)
+        logger.error(f"OpenAI API error: {str(e)}")
         return "I'm experiencing technical difficulties. Please try again later."
         
     except openai.RateLimitError as e:
-        error_message = f"OpenAI rate limit exceeded: {str(e)}"
-        print(error_message)
+        logger.warning(f"OpenAI rate limit exceeded: {str(e)}")
         return "I'm currently busy. Please try again in a moment."
         
     except openai.AuthenticationError as e:
-        error_message = f"OpenAI authentication error: {str(e)}"
-        print(error_message)
+        logger.error(f"OpenAI authentication error: {str(e)}")
         return "There's a configuration issue. Please contact support."
         
     except Exception as e:
-        error_message = f"Unexpected error while getting AI response: {str(e)}"
-        print(error_message)
+        logger.error(f"Unexpected error while getting AI response: {str(e)}", exc_info=True)
         return "I encountered an unexpected error. Please try again." 

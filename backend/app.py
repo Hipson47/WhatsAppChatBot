@@ -5,21 +5,40 @@ This module contains the main FastAPI application for handling WhatsApp webhooks
 through Twilio integration with proper validation and error handling.
 """
 
-from fastapi import FastAPI, Request, Response, Form, HTTPException
-from pydantic import BaseModel
-from twilio.twiml.messaging_response import MessagingResponse
-from openai_client import get_ai_response
+import os
 import logging
+from fastapi import FastAPI, Response, Form, HTTPException, Request
+from pydantic import BaseModel, Field, validator
+from twilio.twiml.messaging_response import MessagingResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from openai_client import get_ai_response
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
+
+# Configuration from environment variables
+MAX_MESSAGE_LENGTH = int(os.getenv("MAX_MESSAGE_LENGTH", "1000"))
+MAX_TOKENS = int(os.getenv("MAX_TOKENS", "150"))
+RATE_LIMIT = os.getenv("RATE_LIMIT_PER_MINUTE", "10/minute")
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="WhatsApp Bot API",
     description="Production-ready FastAPI application for WhatsApp chatbot using Twilio",
     version="1.0.0"
 )
+
+# Add rate limiting middleware
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 class TwilioRequest(BaseModel):
@@ -30,8 +49,21 @@ class TwilioRequest(BaseModel):
         Body (str): The message content sent by the user.
         From (str): The phone number of the message sender.
     """
-    Body: str
-    From: str
+    Body: str = Field(..., max_length=MAX_MESSAGE_LENGTH, min_length=1)
+    From: str = Field(..., regex=r'^whatsapp:\+\d{1,15}$')
+    
+    @validator('Body')
+    def validate_message_content(cls, v):
+        """Validate message content for security."""
+        if not v.strip():
+            raise ValueError('Message cannot be empty')
+        # Basic XSS prevention
+        dangerous_chars = ['<script', 'javascript:', 'data:', 'vbscript:']
+        v_lower = v.lower()
+        for char in dangerous_chars:
+            if char in v_lower:
+                raise ValueError('Message contains potentially dangerous content')
+        return v.strip()
 
 
 @app.get("/")
@@ -46,7 +78,8 @@ async def root() -> dict[str, str]:
 
 
 @app.post("/webhook")
-async def webhook(data: TwilioRequest = Form(...)) -> Response:
+@limiter.limit(RATE_LIMIT)
+async def webhook(request: Request, data: TwilioRequest = Form(...)) -> Response:
     """
     Handle incoming WhatsApp messages from Twilio webhook.
     
@@ -65,18 +98,18 @@ async def webhook(data: TwilioRequest = Form(...)) -> Response:
         HTTPException: 500 if there's an internal server error processing the request.
     """
     try:
-        # Log received message for debugging
-        logger.info(f"Message from {data.From}: {data.Body}")
-        print(f"Message from {data.From}: {data.Body}")
+        # Log received message for debugging (only log first 100 chars for security)
+        safe_message = data.Body[:100] + "..." if len(data.Body) > 100 else data.Body
+        logger.info(f"Message from {data.From}: {safe_message}")
         
-        # Get AI response from OpenAI
-        ai_response = await get_ai_response(data.Body)
+        # Get AI response from OpenAI with configurable max_tokens
+        ai_response = await get_ai_response(data.Body, max_tokens=MAX_TOKENS)
         
         # Create TwiML response with AI-generated content
         twiml_response = MessagingResponse()
         twiml_response.message(ai_response)
         
-        logger.info(f"Sending response to {data.From}: {ai_response}")
+        logger.info(f"Sent response to {data.From} (length: {len(ai_response)})")
         
         # Return XML response
         return Response(
@@ -84,10 +117,16 @@ async def webhook(data: TwilioRequest = Form(...)) -> Response:
             media_type="application/xml"
         )
         
+    except ValueError as e:
+        # Handle validation errors
+        logger.warning(f"Validation error from {data.From}: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid message format or content"
+        )
     except Exception as e:
         # Log the error for debugging
-        error_message = f"Unexpected error processing webhook: {str(e)}"
-        logger.error(error_message)
+        logger.error(f"Unexpected error processing webhook from {data.From}: {str(e)}", exc_info=True)
         
         # Return a 500 error with a generic message
         raise HTTPException(
