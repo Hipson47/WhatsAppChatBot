@@ -94,7 +94,7 @@ start.bat
 
 3. **Monitor Activity:**
    - Check the console output to see incoming messages and bot responses
-   - All interactions are logged for debugging and monitoring 
+   - All interactions are logged for debugging and monitoring xd
    
 
 
