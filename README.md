@@ -1,6 +1,6 @@
-# 🤖 WhatsApp RAG Multi-Agent Bot
+# 🤖 Telegram RAG Multi-Agent Bot
 
-A production-ready, RAG-powered multi-agent WhatsApp chatbot built with FastAPI and Google Cloud AI Platform. This advanced bot leverages retrieval-augmented generation (RAG) and multi-agent architecture to provide intelligent, context-aware conversational AI through WhatsApp using Twilio's API.
+A production-ready, RAG-powered multi-agent Telegram chatbot built with Python and Google Cloud AI Platform. This advanced bot leverages retrieval-augmented generation (RAG) and multi-agent architecture to provide intelligent, context-aware conversational AI through Telegram's Bot API.
 
 ## ✨ Key Features
 
@@ -8,7 +8,7 @@ A production-ready, RAG-powered multi-agent WhatsApp chatbot built with FastAPI 
 - **🧠 RAG-Powered**: Advanced retrieval-augmented generation for contextual responses
 - **🤖 Multi-Agent Architecture**: Specialized agents for different conversation contexts
 - **🔍 Vector Search**: ChromaDB integration for intelligent knowledge retrieval
-- **📱 WhatsApp Native**: Seamless integration through Twilio's WhatsApp API
+- **📱 Telegram Native**: Seamless integration through Telegram Bot API
 - **🛡️ Enterprise Security**: Rate limiting, input validation, and secure credential management
 - **☁️ Cloud Native**: Optimized for Google Cloud Run with advanced CI/CD pipeline
 - **📊 Structured Logging**: Professional logging with structured output for monitoring
@@ -17,8 +17,8 @@ A production-ready, RAG-powered multi-agent WhatsApp chatbot built with FastAPI 
 ## 🛠️ Tech Stack
 
 ### Core Framework
-- **Backend**: FastAPI (Python 3.11+)
-- **ASGI Server**: Uvicorn with structured logging
+- **Backend**: Python 3.11+ with python-telegram-bot library
+- **Bot Framework**: Telegram Bot API with polling
 - **Architecture**: Multi-agent system with RAG capabilities
 
 ### AI & Machine Learning  
@@ -28,9 +28,9 @@ A production-ready, RAG-powered multi-agent WhatsApp chatbot built with FastAPI 
 - **RAG Framework**: LangChain with Google Vertex AI
 
 ### Communication & APIs
-- **Messaging**: Twilio WhatsApp API
+- **Messaging**: Telegram Bot API
 - **HTTP Client**: httpx for async operations
-- **Rate Limiting**: SlowAPI for DoS protection
+- **Bot Library**: python-telegram-bot v20+
 - **Data Validation**: Pydantic v2
 
 ### Infrastructure & Deployment
@@ -50,9 +50,9 @@ A production-ready, RAG-powered multi-agent WhatsApp chatbot built with FastAPI 
 ```
 WhatsAppChatBot/
 ├── src/                       # Main application source code
-│   ├── api/                   # FastAPI application and endpoints
+│   ├── bots/                 # Telegram bot implementation
 │   │   ├── __init__.py
-│   │   └── main.py           # FastAPI app with health check
+│   │   └── telegram_bot.py   # Main Telegram bot logic
 │   ├── agents/               # Multi-agent system components
 │   │   └── __init__.py
 │   ├── core/                 # Shared utilities and configurations
@@ -79,7 +79,7 @@ WhatsAppChatBot/
 ### Directory Roles
 
 - **`src/`**: Main application code organized by domain
-- **`src/api/`**: FastAPI endpoints and HTTP layer
+- **`src/bots/`**: Telegram bot implementation and handlers
 - **`src/agents/`**: Multi-agent orchestration and agent definitions
 - **`src/core/`**: Shared utilities, configurations, and base classes
 - **`src/tools/`**: External integrations and agent tools
@@ -94,7 +94,7 @@ WhatsAppChatBot/
 - **Python 3.11+**: For local development
 - **Docker & Docker Compose**: For containerized development  
 - **Google Cloud Account**: For production deployment and AI services
-- **Twilio Account**: For WhatsApp API access
+- **Telegram Bot Token**: From BotFather for Telegram API access
 - **Google Cloud AI Platform**: For Vertex AI integration
 
 ### Development Requirements
@@ -127,60 +127,35 @@ WhatsAppChatBot/
    ```
 
 3. **Configure environment variables**:
-   ```bash
-   # Copy the template and fill in your credentials
-   cp .env.example .env
-   ```
-   
-   Fill in your credentials in `.env`:
+   Create a `.env` file in the project root:
    ```env
-   # Twilio Credentials
-   TWILIO_ACCOUNT_SID=your_account_sid_here
-   TWILIO_AUTH_TOKEN=your_auth_token_here
-   TWILIO_PHONE_NUMBER=whatsapp:+14155238886
+   # Telegram Bot Configuration
+   TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
    
    # Google Cloud AI Platform
    GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
    GOOGLE_CLOUD_PROJECT=your-project-id
    
    # Configuration
-   MAX_MESSAGE_LENGTH=1000
-   MAX_TOKENS=150
-   RATE_LIMIT_PER_MINUTE=10
    ENVIRONMENT=development
+   LOG_LEVEL=info
    ```
+   
+   **Getting a Telegram Bot Token:**
+   1. Message [@BotFather](https://t.me/botfather) on Telegram
+   2. Send `/newbot` and follow the instructions
+   3. Copy the bot token and add it to your `.env` file
 
 4. **Launch the application**:
-
-   **Option A: Docker Compose (Recommended)**
    ```bash
-   # Start with Docker Compose
-   docker-compose up --build
-   
-   # Or use the Windows launcher:
-   .\start.bat
-   ```
-
-   **Option B: Direct Python Execution**
-   ```bash
-   # Run the application directly
+   # Run the Telegram bot
    python main.py
    ```
 
-5. **Configure Twilio webhook** (for WhatsApp integration):
-   - Use ngrok for local testing: `ngrok http 8000`
-   - Copy the ngrok HTTPS URL
-   - Go to your [Twilio Console](https://console.twilio.com/us1/develop/sms/settings/whatsapp-sandbox)
-   - Set the webhook URL to: `https://your-ngrok-url.ngrok.io/webhook`
-
-6. **Test the API**:
-   ```bash
-   # Health check
-   curl http://localhost:8000/health
-   
-   # API documentation
-   # Visit: http://localhost:8000/docs
-   ```
+5. **Test the bot**:
+   - Find your bot on Telegram using the username you created with BotFather
+   - Send `/start` to begin chatting
+   - The bot will echo your messages and confirm it's working
 
 ## 🚀 Production Deployment
 
@@ -222,18 +197,11 @@ The application supports the following environment variables:
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `TWILIO_ACCOUNT_SID` | Twilio Account SID | - | Yes |
-| `TWILIO_AUTH_TOKEN` | Twilio Auth Token | - | Yes |
-| `TWILIO_PHONE_NUMBER` | WhatsApp phone number | - | Yes |
+| `TELEGRAM_BOT_TOKEN` | Bot token from BotFather | - | Yes |
 | `GOOGLE_CLOUD_PROJECT` | GCP Project ID | - | Yes |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Service account key path | - | Yes |
-| `MAX_MESSAGE_LENGTH` | Maximum message length | 1000 | No |
-| `MAX_TOKENS` | Maximum AI response tokens | 150 | No |
-| `RATE_LIMIT_PER_MINUTE` | API rate limit | 10 | No |
-| `ENVIRONMENT` | Environment type | production | No |
+| `ENVIRONMENT` | Environment type | development | No |
 | `LOG_LEVEL` | Logging level | info | No |
-| `HOST` | Server host | 0.0.0.0 | No |
-| `PORT` | Server port | 8000 | No |
 
 ## 🏗️ Architecture
 
@@ -305,7 +273,7 @@ The application includes comprehensive monitoring capabilities:
 - [ ] Integration with popular CRM systems
 
 ### Phase 4: Platform Expansion 🔮
-- [ ] Discord and Telegram integration
+- [ ] Discord and WhatsApp integration
 - [ ] Voice message support
 - [ ] Real-time collaboration features
 - [ ] Mobile companion app

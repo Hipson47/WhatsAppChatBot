@@ -211,3 +211,6 @@ models/
 # Data files
 data/
 datasets/
+
+# Exclude knowledge base directory
+/knowledge_base/
