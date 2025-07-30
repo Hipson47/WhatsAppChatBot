@@ -1,0 +1,1 @@
+"""Core module containing shared utilities, configurations, and base classes."""
