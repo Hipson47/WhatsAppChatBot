@@ -1,64 +1,40 @@
-# 
-# === Rules for the WhatsApp Chatbot Builder Project ===
-# 
-# This file defines the coding and architectural standards for the AI.
-# The goal is to ensure high quality, security, and consistency in the generated code.
-# Inspired by best practices from the awesome-cursorrules community.
-# 
-
-# --- General Principles ---
-general:
-  # The language for comments, variable names, and documentation is English.
-  - Write comments that explain "why" the code is written a certain way, not "what" it does. Avoid obvious comments.
-  # Security
-  - Never hardcode any API keys, tokens, passwords, or other sensitive data directly in the code. Use environment variables and load them with a `dotenv` library. In configuration files, only use references to these variables.
-
-# --- Backend: Python & FastAPI ---
-backend:
-  # Conventions and standards
-  - All Python code must adhere to the PEP 8 standard.
-  - Use the FastAPI framework for building the API.
-  # From awesome-cursorrules: Enforce code formatting
-  - Use `black` for code formatting and `isort` for import sorting to maintain consistency.
-  
-  # Asynchronicity
-  - All I/O operations, such as API requests (Twilio, OpenAI) or database operations, must be asynchronous (use `async` and `await`).
-  
-  # Typing
-  - Apply strict type hinting for all function arguments and return values. Use Python's `typing` module.
-  
-  # Documentation
-  # From awesome-cursorrules: Enforce Google-style docstrings
-  - All public functions and classes must have Google-style docstrings, including Args, Returns, and Raises sections.
-
-  # Data Validation
-  - Use Pydantic models for validation of incoming and outgoing API data.
-  
-  # Structure
-  - Divide the code into logical modules. Logic related to Twilio should be in a separate file, OpenAI logic in another, and the main `app.py` file should only handle routing and orchestration.
-  
-  # Error Handling
-  - Implement detailed error handling using `try...except` blocks and return appropriate HTTP status codes (e.g., 400, 401, 500).
-
-# --- Frontend: Electron & React (Future-proof) ---
-frontend:
-  # Language and framework
-  - Use TypeScript for all frontend code with strict mode enabled.
-  - Build the application based on React using functional components and Hooks.
-  
-  # State Management
-  - For global state management, prefer lightweight libraries like Zustand or Jotai.
-  
-  # Styling
-  - Use Tailwind CSS for styling components to ensure consistency and development speed.
-  
-  # Component Structure
-  # From awesome-cursorrules: Enforce component file structure
-  - Each component should be in its own folder, e.g., `/components/Button/index.tsx`.
-  
-  # Communication
-  - Communication with the backend should be done via secure API calls (IPC in Electron or local HTTP).
-  
-  # Accessibility
-  # From awesome-cursorrules: Enforce accessibility standards
-  - All interactive UI elements must have appropriate ARIA roles and labels.
+rules:
+  -  # Enforce f-string
+    linter: "flake8"
+    code: "F541"
+    autoApply: true
+    justification: "F-strings are more readable and efficient than other string formatting methods in Python. This rule automatically converts other formats to f-strings."
+  -  # Enforce double quotes
+    linter: "flake8"
+    code: "Q000"
+    autoApply: true
+    justification: "Using double quotes for strings ensures stylistic consistency across the project, which improves readability. This rule automatically changes single quotes to double quotes."
+  -  # Require Google-style docstrings
+    linter: "pydocstyle"
+    code: "D100,D101,D102,D103,D104,D105,D106,D107"
+    autoApply: false # Set to false to avoid AI generating unwanted docstrings; developer adds them manually.
+    justification: "Every function, class, and module should have a Google-style docstring to ensure the code is well-documented and easy for other developers to understand."
+  -  # Code complexity
+    linter: "flake8"
+    code: "C901"
+    autoApply: false
+    justification: "Limiting the cyclomatic complexity of functions helps maintain code that is easier to understand, test, and refactor."
+  -  # Line length
+    linter: "flake8"
+    code: "E501"
+    autoApply: false
+    justification: "Keeping line length below a set limit (default is 79 for flake8, but often set to 88-120) improves code readability, especially on smaller screens or in split views."
+  -  # No unused imports
+    linter: "flake8"
+    code: "F401"
+    autoApply: true
+    justification: "Removing unused imports keeps the code clean and prevents unnecessary namespace pollution."
+  -  # Trailing commas
+    linter: "flake8"
+    code: "C812"
+    autoApply: true
+    justification: "Enforcing trailing commas in multi-line literals (lists, dictionaries) makes version control diffs cleaner and simplifies adding new items."
+  -  # Isort for import ordering
+    linter: "isort"
+    autoApply: true
+    justification: "Automatically sorting imports in a standard way (alphabetically, grouped by type) significantly improves code readability and organization."
