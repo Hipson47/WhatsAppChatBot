@@ -1,22 +1,25 @@
+# Final, corrected Cloud Build configuration for deploying the FastAPI application
 steps:
-  # Step 1: Build and Push the image in one command.
-  # This uses gcloud's native build submission, which is better integrated
-  # with GCP's IAM and Artifact Registry than the generic docker builder.
-  - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'Build and Push'
+  # Step 1: Build the Docker image from backend/Dockerfile
+  # The context is the root directory '.', and the Dockerfile location is specified with '-f'.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Build
     args:
-      - 'builds'
-      - 'submit'
-      - '--tag'
+      - 'build'
+      - '-t'
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA'
+      - '-f'
+      - 'backend/Dockerfile'
       - '.'
-      - '--gcs-source-staging-dir=gs://vortex-ai-user_cloudbuild/source' # IMPORTANT: Using your project ID here
-      - '--file=backend/Dockerfile'
 
-  # Step 2: Deploy the newly built image to Cloud Run.
-  # This step remains the same.
+  # Step 2: Push the built image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: Push
+    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/whatsapp-bot-repo/whatsapp-bot-service:$COMMIT_SHA']
+
+  # Step 3: Deploy the new image version to Cloud Run
   - name: 'gcr.io/google-cloud-sdk/gcloud'
-    id: 'Deploy to Cloud Run'
+    id: Deploy
     entrypoint: gcloud
     args:
       - 'run'
@@ -26,12 +29,10 @@ steps:
       - '--region=europe-west1'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--service-account=whatsapp-bot-service@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--service-account=whatsapp-bot-service@vortex-ai-user.iam.gserviceaccount.com'
       - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest,TWILIO_PHONE_NUMBER=TWILIO_PHONE_NUMBER:latest,GOOGLE_APPLICATION_CREDENTIALS=gcp-sa-key:latest'
       - '--min-instances=0'
       - '--max-instances=2'
 
-# The images section is no longer needed as the gcloud command handles the image artifact registration.
-# options section remains the same.
 options:
   logging: CLOUD_LOGGING_ONLY 
