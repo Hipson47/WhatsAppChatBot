@@ -19,13 +19,13 @@ A production-ready, RAG-powered multi-agent Telegram chatbot built with Python a
 ### Core Framework
 - **Backend**: Python 3.11+ with python-telegram-bot library
 - **Bot Framework**: Telegram Bot API with polling
-- **Architecture**: Multi-agent system with RAG capabilities
+- **Architecture**: Agent-based system with RAG-powered tools and LangChain orchestration
 
 ### AI & Machine Learning  
-- **LLM Integration**: Google Cloud AI Platform (Vertex AI)
+- **LLM Integration**: OpenAI GPT-4o-mini for conversational responses
+- **Embeddings**: Google Cloud Vertex AI (textembedding-gecko@003)
 - **Vector Database**: ChromaDB for embeddings storage
-- **Embedding Models**: Sentence Transformers
-- **RAG Framework**: LangChain with Google Vertex AI
+- **RAG Framework**: LangChain with conversational retrieval chains
 
 ### Communication & APIs
 - **Messaging**: Telegram Bot API
@@ -50,13 +50,15 @@ A production-ready, RAG-powered multi-agent Telegram chatbot built with Python a
 ```
 WhatsAppChatBot/
 ├── src/                       # Main application source code
-│   ├── bots/                 # Telegram bot implementation
+│   ├── bots/                 # Telegram bot implementation (UI layer)
 │   │   ├── __init__.py
-│   │   └── telegram_bot.py   # Main Telegram bot logic
-│   ├── agents/               # Multi-agent system components
-│   │   └── __init__.py
+│   │   └── telegram_bot.py   # Clean interface that delegates to agents
+│   ├── agents/               # Agent system components (AI logic layer)
+│   │   ├── __init__.py
+│   │   └── main_agent.py     # Core RAG agent with LangChain tools
 │   ├── core/                 # Shared utilities and configurations
-│   │   └── __init__.py  
+│   │   ├── __init__.py
+│   │   └── vector_store.py   # Vector database management
 │   ├── tools/                # Agent tools and external integrations
 │   │   └── __init__.py
 │   ├── prompts/              # Prompt templates and management
@@ -79,7 +81,7 @@ WhatsAppChatBot/
 ### Directory Roles
 
 - **`src/`**: Main application code organized by domain
-- **`src/bots/`**: Telegram bot implementation and handlers
+- **`src/bots/`**: Telegram bot UI layer - handles user interactions and delegates to agents
 - **`src/agents/`**: Multi-agent orchestration and agent definitions
 - **`src/core/`**: Shared utilities, configurations, and base classes
 - **`src/tools/`**: External integrations and agent tools
@@ -132,6 +134,9 @@ WhatsAppChatBot/
    # Telegram Bot Configuration
    TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
    
+   # OpenAI API Configuration
+   OPENAI_API_KEY=your_openai_api_key
+   
    # Google Cloud AI Platform
    GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
    GOOGLE_CLOUD_PROJECT=your-project-id
@@ -141,21 +146,83 @@ WhatsAppChatBot/
    LOG_LEVEL=info
    ```
    
-   **Getting a Telegram Bot Token:**
+   **Getting Required API Keys:**
+   
+   **Telegram Bot Token:**
    1. Message [@BotFather](https://t.me/botfather) on Telegram
    2. Send `/newbot` and follow the instructions
    3. Copy the bot token and add it to your `.env` file
+   
+   **OpenAI API Key:**
+   1. Go to [OpenAI API Keys](https://platform.openai.com/api-keys)
+   2. Create a new API key
+   3. Copy the key (starts with `sk-`) and add it to your `.env` file
 
-4. **Launch the application**:
+4. **Set up the knowledge base** (REQUIRED - first time only):
+   ```bash
+   # Process your knowledge base to create the vector store
+   python ingest.py
+   ```
+   
+   **⚠️ Important:** You must run this command before starting the bot for the first time. The bot requires the vector store to function properly.
+
+5. **Launch the application**:
    ```bash
    # Run the Telegram bot
    python main.py
    ```
 
-5. **Test the bot**:
+6. **Test the bot**:
    - Find your bot on Telegram using the username you created with BotFather
    - Send `/start` to begin chatting
-   - The bot will echo your messages and confirm it's working
+   - Ask questions about your knowledge base - the bot will now provide intelligent answers based on your documents!
+
+## 📚 Managing the Knowledge Base
+
+The bot uses a Retrieval-Augmented Generation (RAG) system to provide intelligent responses based on your knowledge base. To update the bot's knowledge:
+
+### Setting up Google Cloud Authentication
+
+Before you can process your knowledge base, you need to set up Google Cloud authentication for the Vertex AI embeddings:
+
+1. **Create a Google Cloud Service Account**:
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to IAM & Admin > Service Accounts
+   - Create a new service account with Vertex AI permissions
+
+2. **Download the service account key**:
+   - Generate and download a JSON key file for your service account
+   - Save it securely on your local machine
+
+3. **Set the environment variable**:
+   ```bash
+   # Add this to your .env file
+   GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
+   ```
+
+### Processing Your Knowledge Base
+
+1. **Add documents to the knowledge base**:
+   - Place your documents (`.txt`, `.md` files) in the `knowledge_base/` directory
+   - The system supports text files and Markdown documents
+   - PDF support is available through the unstructured library
+
+2. **Run the ingestion script**:
+   ```bash
+   # Process all documents and create the vector store
+   python ingest.py
+   ```
+
+3. **What happens during ingestion**:
+   - Documents are loaded from the `knowledge_base/` directory
+   - Text is split into manageable chunks (1000 characters with 100 character overlap)
+   - Embeddings are created using Google's Vertex AI embedding model
+   - All data is stored locally in a ChromaDB vector store (`vector_store/` directory)
+
+### Notes:
+- The `knowledge_base/` and `vector_store/` directories are excluded from version control
+- You need to re-run `python ingest.py` whenever you add or modify documents
+- The vector store is created locally and doesn't require external database services
 
 ## 🚀 Production Deployment
 
@@ -198,21 +265,35 @@ The application supports the following environment variables:
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
 | `TELEGRAM_BOT_TOKEN` | Bot token from BotFather | - | Yes |
+| `OPENAI_API_KEY` | OpenAI API key for GPT-4o-mini | - | Yes |
 | `GOOGLE_CLOUD_PROJECT` | GCP Project ID | - | Yes |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Service account key path | - | Yes |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Service account key path | - | Yes (for RAG) |
 | `ENVIRONMENT` | Environment type | development | No |
 | `LOG_LEVEL` | Logging level | info | No |
 
 ## 🏗️ Architecture
 
-### Multi-Agent System
+### Agent-Based System
 
-The bot uses a sophisticated multi-agent architecture:
+The application uses a clean agent-based architecture with clear separation of concerns:
 
-- **Router Agent**: Determines which specialized agent should handle the request
-- **RAG Agent**: Handles knowledge base queries using vector search
-- **Conversational Agent**: Manages general conversation and context
-- **Tool Agent**: Executes external tools and API calls
+**Architecture Layers:**
+- **UI Layer** (`src/bots/`): Telegram bot interface - handles user interactions
+- **Agent Layer** (`src/agents/`): Intelligent agents with tools and reasoning capabilities
+- **Core Layer** (`src/core/`): Shared utilities, vector store management, and data processing
+
+**Current Agent Implementation:**
+- **Main Agent** (`main_agent.py`): RAG-powered agent with knowledge base search tool
+- **Tool System**: LangChain tools for accessing the vector database
+- **Agent Executor**: Handles the reasoning loop and tool selection
+- **Extensible Design**: Easy to add new tools and capabilities
+
+**Benefits of Agent Architecture:**
+- **Modularity**: Clean separation between UI (Telegram) and AI logic (agents)
+- **Extensibility**: Add new tools and capabilities without changing the bot interface
+- **Testability**: Agent logic can be tested independently of the Telegram interface
+- **Reusability**: Agents can be used by different interfaces (web, API, CLI)
+- **Scalability**: Agent processing can be moved to separate services if needed
 
 ### RAG Implementation
 
