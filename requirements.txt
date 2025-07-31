@@ -43,3 +43,6 @@ langchain-community>=0.0.10,<1.0.0
 
 # Telegram Bot API
 python-telegram-bot>=20.0,<21.0.0
+
+# Timezone handling
+pytz>=2024.1

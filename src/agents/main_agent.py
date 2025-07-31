@@ -19,7 +19,8 @@ from langchain.tools.retriever import create_retriever_tool
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain import hub
 
-from src.core.models import SearchKnowledgeBase
+from src.core.models import AgentCommand, SearchKnowledgeBase, GetCurrentTime
+from src.tools.datetime_tools import get_current_time
 
 # --- CONFIGURATION ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -39,7 +40,7 @@ logger.info("Initializing AI components for the agent...")
 
 # 1. Initialize models
 # Model for parsing user intent into a structured command
-parser_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0).with_structured_output(SearchKnowledgeBase)
+parser_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0).with_structured_output(AgentCommand)
 
 # Model for executing the task and generating a final answer
 executor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
@@ -57,7 +58,7 @@ knowledge_base_tool = create_retriever_tool(
     "knowledge_base_search",
     "Searches and returns information from the user's knowledge base. Use this for any questions that require context from provided documents."
 )
-tools = [knowledge_base_tool]
+tools = [knowledge_base_tool, get_current_time]
 
 # 3. Create the Executor Agent
 # This agent's job is to use tools to fulfill a specific task
@@ -87,6 +88,7 @@ def parse_command(user_input: str) -> BaseModel:
     
     Available tasks:
     1. 'search_knowledge_base': Use this when the user is asking a question or looking for information that might be in the provided documents. The 'query' should be the user's question.
+    2. 'get_current_time': Use this when the user asks for the current time. The 'timezone' parameter is optional and defaults to UTC, but if the user specifies a city or timezone (e.g., "time in Warsaw", "what time is it in New York"), extract it.
 
     User Request: "{user_input}"
     
@@ -115,9 +117,10 @@ def execute_command(command: BaseModel) -> str:
         result = agent_executor.invoke({"input": command.query})
         return result.get("output", "I could not find an answer.")
     
-    # Placeholder for future commands
-    # elif isinstance(command, SomeOtherTask):
-    #     return some_other_function(command.parameters)
+    elif isinstance(command, GetCurrentTime):
+        # If the task is to get the current time, call the tool directly
+        # This is more efficient than running the full agent executor for a simple task
+        return get_current_time.run(command.timezone)
         
     else:
         logger.warning(f"Unknown command type: {type(command)}")

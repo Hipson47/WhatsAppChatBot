@@ -60,7 +60,8 @@ WhatsAppChatBot/
 │   │   ├── __init__.py
 │   │   └── vector_store.py   # Vector database management
 │   ├── tools/                # Agent tools and external integrations
-│   │   └── __init__.py
+│   │   ├── __init__.py
+│   │   └── datetime_tools.py # Time retrieval tools
 │   ├── prompts/              # Prompt templates and management
 │   │   └── __init__.py
 │   └── __init__.py
@@ -84,7 +85,7 @@ WhatsAppChatBot/
 - **`src/bots/`**: Telegram bot UI layer - handles user interactions and delegates to agents
 - **`src/agents/`**: Multi-agent orchestration and agent definitions
 - **`src/core/`**: Shared utilities, configurations, and base classes
-- **`src/tools/`**: External integrations and agent tools
+- **`src/tools/`**: Reusable tools for agents (datetime, web search, calculations, etc.)
 - **`src/prompts/`**: Prompt templates and prompt management
 - **`knowledge_base/`**: RAG knowledge storage and vector databases
 - **`tests/`**: Comprehensive test suite for all components
@@ -129,7 +130,7 @@ WhatsAppChatBot/
    ```
 
 3. **Configure environment variables**:
-   Create a `.env` file in the project root:
+   Create a `.env` file in the project root with the following content:
    ```env
    # Telegram Bot Configuration
    TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
@@ -146,6 +147,8 @@ WhatsAppChatBot/
    LOG_LEVEL=info
    ```
    
+   **💡 Tip:** You can also create a `.env.example` file with empty values as a template for other users.
+   
    **Getting Required API Keys:**
    
    **Telegram Bot Token:**
@@ -158,24 +161,62 @@ WhatsAppChatBot/
    2. Create a new API key
    3. Copy the key (starts with `sk-`) and add it to your `.env` file
 
-4. **Set up the knowledge base** (REQUIRED - first time only):
+## 🔐 Google Cloud Authentication Setup
+
+To build the knowledge base (`ingest.py`), the application needs to authenticate with Google Cloud to use the Vertex AI embedding models.
+
+### 1. Create a Service Account
+- Go to the [IAM & Admin -> Service Accounts](https://console.cloud.google.com/iam-admin/serviceaccounts) page in your Google Cloud project
+- Click **"+ CREATE SERVICE ACCOUNT"**
+- Give it a name (e.g., `chatbot-embedder`) and click **"CREATE AND CONTINUE"**
+- Grant it the **"Vertex AI User"** role
+- Click **"DONE"**
+
+### 2. Create a JSON Key
+- Find the newly created service account in the list
+- Click on the three dots under "Actions" and select **"Manage keys"**
+- Click **"ADD KEY"** -> **"Create new key"**
+- Select **JSON** as the key type and click **"CREATE"**
+- A JSON file will be downloaded to your computer. **Treat this file like a password!**
+
+### 3. Configure Environment Variable
+- Move the downloaded JSON file to a secure location on your computer (e.g., a folder like `C:\gcloud-keys\`)
+- Open your `.env` file
+- Set the `GOOGLE_APPLICATION_CREDENTIALS` variable to the **full path** of the downloaded JSON file. For example:
+  ```env
+  GOOGLE_APPLICATION_CREDENTIALS="C:\gcloud-keys\my-project-12345-abcdef123456.json"
+  ```
+
+Now, when you run `start.bat`, the `ingest.py` script will be able to authenticate with Google Cloud successfully.
+
+4. **Launch the application** (Windows):
    ```bash
-   # Process your knowledge base to create the vector store
-   python ingest.py
+   # Use the intelligent startup script (recommended)
+   start.bat
    ```
    
-   **⚠️ Important:** You must run this command before starting the bot for the first time. The bot requires the vector store to function properly.
-
-5. **Launch the application**:
+   The `start.bat` script will:
+   - ✅ Check if your `.env` file is properly configured
+   - ✅ Verify Google Cloud authentication setup
+   - ✅ Handle knowledge base creation/updates automatically
+   - ✅ Start the Telegram bot
+   
+   **Alternative (manual launch):**
    ```bash
-   # Run the Telegram bot
+   # First time: Build knowledge base
+   python ingest.py
+   
+   # Then start the bot
    python main.py
    ```
 
-6. **Test the bot**:
+5. **Test the bot**:
    - Find your bot on Telegram using the username you created with BotFather
    - Send `/start` to begin chatting
-   - Ask questions about your knowledge base - the bot will now provide intelligent answers based on your documents!
+   - Try these example queries:
+     - *"What time is it in Tokyo?"*
+     - Ask questions about your knowledge base documents
+     - The bot provides intelligent answers with quality assurance!
 
 ## 📚 Managing the Knowledge Base
 
@@ -226,7 +267,18 @@ Before you can process your knowledge base, you need to set up Google Cloud auth
 
 ## 🔧 Extending the Agent System
 
-The Parse-and-Execute architecture makes it easy to add new capabilities. To add a new command:
+The Parse-Execute-Supervise architecture makes it incredibly easy to add new capabilities. We've demonstrated this by adding a **time retrieval tool** to showcase the modularity.
+
+### ⏰ **Example: Time Retrieval Tool (Already Implemented)**
+
+The bot can now handle requests like:
+- *"What time is it?"* (returns UTC time)
+- *"What time is it in Tokyo?"* (returns time in Asia/Tokyo timezone)
+- *"Current time in Europe/Warsaw"* (returns time in Polish timezone)
+
+### 📋 **How to Add New Capabilities**
+
+To add a new command, follow this proven 4-step pattern:
 
 ### 1. Define the Command Model
 Add a new Pydantic model in `src/core/models.py`:
@@ -235,26 +287,32 @@ class WebSearch(BaseModel):
     task: Literal["web_search"] = "web_search"
     query: str = Field(..., description="Search query for the web")
     max_results: int = Field(5, description="Number of results to return")
+
+# Don't forget to update the Union!
+AgentCommand = Union[SearchKnowledgeBase, GetCurrentTime, WebSearch]
 ```
 
 ### 2. Create the Tool
-Implement the tool in your agent:
+Create a new file in `src/tools/` or add to existing ones:
 ```python
-# Add to main_agent.py
-web_search_tool = Tool(
-    name="web_search",
-    description="Search the web for current information",
-    func=your_web_search_function
-)
+# src/tools/web_tools.py
+from langchain.tools import tool
+
+@tool
+def web_search(query: str, max_results: int = 5) -> str:
+    """Search the web for current information."""
+    # Your implementation here
+    return search_results
 ```
 
 ### 3. Update the Parser
-Modify the `parse_command` function to recognize the new command:
+Modify the parser prompt in `parse_command` function:
 ```python
 parser_prompt = f"""
 Available tasks:
 1. 'search_knowledge_base': For questions about provided documents
-2. 'web_search': For current information not in the knowledge base
+2. 'get_current_time': For current time requests
+3. 'web_search': For current information not in the knowledge base
 ...
 """
 ```
@@ -263,8 +321,16 @@ Available tasks:
 Add handling in `execute_command`:
 ```python
 elif isinstance(command, WebSearch):
-    return web_search_executor.invoke(command.query)
+    return web_search.run(command.query, command.max_results)
 ```
+
+### ✅ **Benefits of This Pattern**
+
+- **Type Safety**: Pydantic validation ensures data integrity
+- **Modular**: Each tool is independent and reusable
+- **Quality Assured**: Every response goes through supervision
+- **Extensible**: Add unlimited capabilities without touching existing code
+- **Testable**: Each component can be tested in isolation
 
 This pattern ensures type safety, clear intent understanding, and maintainable code growth.
 
@@ -330,8 +396,11 @@ The application uses a clean agent-based architecture with clear separation of c
 - **Parse-Execute-Supervise Pattern**: Three-step process with quality assurance
 - **Parser LLM**: Converts natural language to structured Pydantic commands  
 - **Command Models** (`models.py`): Type-safe command definitions with validation
-- **Executor Agent**: Runs appropriate tools based on parsed commands
+- **Multi-Tool Executor**: Handles different command types with appropriate tools
 - **Supervisor Layer**: Quality control and answer correction before user delivery
+- **Current Capabilities**:
+  - **Knowledge Base Search**: RAG-powered answers from your documents
+  - **Time Retrieval**: Current time in any timezone worldwide
 - **Extensible Design**: Easy to add new commands and tools
 
 **Parse-Execute-Supervise Pattern:**
