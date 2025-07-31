@@ -224,6 +224,50 @@ Before you can process your knowledge base, you need to set up Google Cloud auth
 - You need to re-run `python ingest.py` whenever you add or modify documents
 - The vector store is created locally and doesn't require external database services
 
+## 🔧 Extending the Agent System
+
+The Parse-and-Execute architecture makes it easy to add new capabilities. To add a new command:
+
+### 1. Define the Command Model
+Add a new Pydantic model in `src/core/models.py`:
+```python
+class WebSearch(BaseModel):
+    task: Literal["web_search"] = "web_search"
+    query: str = Field(..., description="Search query for the web")
+    max_results: int = Field(5, description="Number of results to return")
+```
+
+### 2. Create the Tool
+Implement the tool in your agent:
+```python
+# Add to main_agent.py
+web_search_tool = Tool(
+    name="web_search",
+    description="Search the web for current information",
+    func=your_web_search_function
+)
+```
+
+### 3. Update the Parser
+Modify the `parse_command` function to recognize the new command:
+```python
+parser_prompt = f"""
+Available tasks:
+1. 'search_knowledge_base': For questions about provided documents
+2. 'web_search': For current information not in the knowledge base
+...
+"""
+```
+
+### 4. Update the Executor
+Add handling in `execute_command`:
+```python
+elif isinstance(command, WebSearch):
+    return web_search_executor.invoke(command.query)
+```
+
+This pattern ensures type safety, clear intent understanding, and maintainable code growth.
+
 ## 🚀 Production Deployment
 
 ### Google Cloud Run Deployment
@@ -283,10 +327,46 @@ The application uses a clean agent-based architecture with clear separation of c
 - **Core Layer** (`src/core/`): Shared utilities, vector store management, and data processing
 
 **Current Agent Implementation:**
-- **Main Agent** (`main_agent.py`): RAG-powered agent with knowledge base search tool
-- **Tool System**: LangChain tools for accessing the vector database
-- **Agent Executor**: Handles the reasoning loop and tool selection
-- **Extensible Design**: Easy to add new tools and capabilities
+- **Parse-Execute-Supervise Pattern**: Three-step process with quality assurance
+- **Parser LLM**: Converts natural language to structured Pydantic commands  
+- **Command Models** (`models.py`): Type-safe command definitions with validation
+- **Executor Agent**: Runs appropriate tools based on parsed commands
+- **Supervisor Layer**: Quality control and answer correction before user delivery
+- **Extensible Design**: Easy to add new commands and tools
+
+**Parse-Execute-Supervise Pattern:**
+
+The system now uses a sophisticated three-step approach with quality assurance:
+
+1. **Parse Step**: Natural language input → Structured Pydantic command
+   - Uses a specialized parser LLM (temperature=0 for consistency)
+   - Converts user intent into type-safe, validated command objects
+   - Enables precise understanding of user requirements
+
+2. **Execute Step**: Structured command → Tool execution → Initial response
+   - Routes commands to appropriate executors
+   - Uses specialized agent with relevant tools
+   - Generates contextual responses based on tool results
+
+3. **Supervise Step**: Initial response → Quality review → Final response
+   - Uses a dedicated supervisor LLM (temperature=0.1 for balanced evaluation)
+   - Reviews answers for relevance, accuracy, completeness, and clarity
+   - Either approves the original answer or provides an improved version
+   - **Evaluation Criteria:**
+     - **Relevance**: Does the answer directly address the user's query?
+     - **Accuracy**: Is the information correct and consistent?
+     - **Completeness**: Are all key details included?
+     - **Clarity**: Is the answer easy to understand?
+
+**Benefits of Parse-Execute-Supervise:**
+- **Quality Assurance**: Every response is reviewed before reaching the user
+- **Error Correction**: Supervisor can fix inaccurate or incomplete answers
+- **Intent Alignment**: Ensures responses directly address user queries
+- **Consistency**: Standardized quality criteria across all responses
+- **Type Safety**: Pydantic models ensure command validation
+- **Clarity**: Clear separation between understanding, execution, and quality control
+- **Debuggability**: Easy to inspect parsed commands, execution paths, and quality reviews
+- **Extensibility**: Add new commands without touching existing logic
 
 **Benefits of Agent Architecture:**
 - **Modularity**: Clean separation between UI (Telegram) and AI logic (agents)
