@@ -2,7 +2,7 @@
 
 A production-ready, RAG-powered multi-agent Telegram chatbot built with Python and Google Cloud AI Platform. This advanced bot leverages retrieval-augmented generation (RAG) and multi-agent architecture to provide intelligent, context-aware conversational AI through Telegram's Bot API.
 
-## ✨ Key Features
+## ✨ Key Features 
 
 - **🚀 Production-Ready**: Fully containerized with Docker and Google Cloud Run deployment
 - **🧠 RAG-Powered**: Advanced retrieval-augmented generation for contextual responses
