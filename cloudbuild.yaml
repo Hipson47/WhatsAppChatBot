@@ -1,10 +1,10 @@
-# Google Cloud Build configuration for RAG Multi-Agent WhatsApp Bot
+# Google Cloud Build configuration for RAG Multi-Agent Telegram Bot
 # This configuration builds and deploys the application to Google Cloud Run
 
 substitutions:
   _REGION: 'europe-west1'
-  _REPOSITORY_NAME: 'whatsapp-rag-bot'
-  _SERVICE_NAME: 'whatsapp-rag-bot-service'
+  _REPOSITORY_NAME: 'chatbot-repo'
+  _SERVICE_NAME: 'chatbot-service'
 
 steps:
   # Step 1: Build the Docker image
@@ -41,7 +41,7 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--service-account=${_SERVICE_NAME}@$PROJECT_ID.iam.gserviceaccount.com'
-      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,TWILIO_ACCOUNT_SID=TWILIO_ACCOUNT_SID:latest,TWILIO_AUTH_TOKEN=TWILIO_AUTH_TOKEN:latest,TWILIO_PHONE_NUMBER=TWILIO_PHONE_NUMBER:latest,GOOGLE_APPLICATION_CREDENTIALS=gcp-sa-key:latest'
+      - '--set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,GOOGLE_APPLICATION_CREDENTIALS=gcp-sa-key:latest'
       - '--min-instances=0'
       - '--max-instances=10'
       - '--memory=2Gi'

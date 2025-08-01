@@ -365,7 +365,7 @@ This pattern ensures type safety, clear intent understanding, and maintainable c
    ```bash
    # Submit build
    gcloud builds submit --config cloudbuild.yaml \
-     --substitutions _REGION=europe-west1,_REPOSITORY_NAME=telegram-rag-bot
+     --substitutions _REGION=europe-west1,_REPOSITORY_NAME=chatbot-repo
    ```
 
 ### 🚀 **Cloud Run Optimization**
