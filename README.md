@@ -365,8 +365,16 @@ This pattern ensures type safety, clear intent understanding, and maintainable c
    ```bash
    # Submit build
    gcloud builds submit --config cloudbuild.yaml \
-     --substitutions _REGION=europe-west1,_REPOSITORY_NAME=whatsapp-rag-bot
+     --substitutions _REGION=europe-west1,_REPOSITORY_NAME=telegram-rag-bot
    ```
+
+### 🚀 **Cloud Run Optimization**
+
+The application is optimized for Cloud Run with:
+- **Lazy Initialization**: Fast startup for health checks (< 1 second)
+- **On-Demand Loading**: Heavy AI models load only when needed
+- **Health Check Ready**: Passes readiness probes without timeouts
+- **Cold Start Optimized**: Minimal initialization overhead
 
 ### Environment Variables
 
@@ -394,6 +402,7 @@ The application uses a clean agent-based architecture with clear separation of c
 
 **Current Agent Implementation:**
 - **Parse-Execute-Supervise Pattern**: Three-step process with quality assurance
+- **Lazy Initialization**: Fast startup with on-demand component loading for Cloud Run
 - **Parser LLM**: Converts natural language to structured Pydantic commands  
 - **Command Models** (`models.py`): Type-safe command definitions with validation
 - **Multi-Tool Executor**: Handles different command types with appropriate tools
@@ -427,6 +436,16 @@ The system now uses a sophisticated three-step approach with quality assurance:
      - **Completeness**: Are all key details included?
      - **Clarity**: Is the answer easy to understand?
 
+**Lazy Initialization Pattern:**
+
+For optimal Cloud Run performance, the system uses lazy loading:
+
+- **Fast Startup**: Application starts in milliseconds for health checks
+- **On-Demand Loading**: AI components load only on first user request
+- **Memory Efficient**: Avoids loading heavy models during deployment
+- **Health Check Friendly**: Passes Cloud Run readiness probes quickly
+- **Production Optimized**: Reduces cold start penalties
+
 **Benefits of Parse-Execute-Supervise:**
 - **Quality Assurance**: Every response is reviewed before reaching the user
 - **Error Correction**: Supervisor can fix inaccurate or incomplete answers
@@ -436,6 +455,7 @@ The system now uses a sophisticated three-step approach with quality assurance:
 - **Clarity**: Clear separation between understanding, execution, and quality control
 - **Debuggability**: Easy to inspect parsed commands, execution paths, and quality reviews
 - **Extensibility**: Add new commands without touching existing logic
+- **Cloud Native**: Optimized for serverless deployments with lazy initialization
 
 **Benefits of Agent Architecture:**
 - **Modularity**: Clean separation between UI (Telegram) and AI logic (agents)

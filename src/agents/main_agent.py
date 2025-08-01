@@ -1,15 +1,18 @@
 """
-Main Agent Module with Parse-Execute-Supervise Architecture.
+Main Agent Module with Parse-Execute-Supervise Architecture and Lazy Initialization.
 
-This module implements a three-step agent system:
+This module implements a three-step agent system with lazy loading:
 1. Parse: Convert natural language input into structured commands
 2. Execute: Run the appropriate tools based on the parsed command  
 3. Supervise: Review and potentially correct the output for quality assurance
+
+The AI components are initialized lazily on first request to improve startup performance
+for Cloud Run deployments and health checks.
 """
 
 import os
 import logging
-from typing import List, Union
+from typing import Dict, Any
 from pydantic import BaseModel
 
 from langchain_community.vectorstores import Chroma
@@ -29,44 +32,60 @@ logger = logging.getLogger(__name__)
 # --- CONSTANTS ---
 VECTOR_STORE_DIR = "vector_store"
 
-# --- VALIDATION ---
-if not os.path.exists(VECTOR_STORE_DIR):
-    logger.error(f"Vector store directory '{VECTOR_STORE_DIR}' not found.")
-    logger.error("Please run 'python ingest.py' first to create the knowledge base.")
-    raise FileNotFoundError(f"Vector store not found at {VECTOR_STORE_DIR}")
+# --- LAZY INITIALIZATION SETUP ---
+# This dictionary will hold our initialized AI components.
+# It will be populated only on the first request.
+AI_COMPONENTS: Dict[str, Any] = {}
 
-# --- INITIALIZATION ---
-logger.info("Initializing AI components for the agent...")
 
-# 1. Initialize models
-# Model for parsing user intent into a structured command
-parser_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0).with_structured_output(AgentCommand)
+def initialize_agent():
+    """
+    Initializes all heavyweight AI components.
+    
+    This function is called only once when the first request comes in.
+    This lazy initialization pattern ensures fast startup for Cloud Run
+    health checks while deferring expensive model loading until needed.
+    """
+    if "agent_executor" in AI_COMPONENTS:
+        logger.info("AI components already initialized.")
+        return
 
-# Model for executing the task and generating a final answer
-executor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
+    logger.info("Performing one-time initialization of AI components...")
 
-# Model for supervising and quality control of outputs
-supervisor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)  # A dedicated model for quality control
+    # Validation: Check if vector store exists
+    if not os.path.exists(VECTOR_STORE_DIR):
+        logger.error(f"Vector store directory '{VECTOR_STORE_DIR}' not found.")
+        logger.error("Please run 'python ingest.py' first to create the knowledge base.")
+        raise FileNotFoundError(f"Vector store not found at {VECTOR_STORE_DIR}")
 
-# 2. Initialize Retriever Tool
-embeddings = VertexAIEmbeddings(model_name="textembedding-gecko@003")
-db = Chroma(persist_directory=VECTOR_STORE_DIR, embedding_function=embeddings)
-retriever = db.as_retriever(search_kwargs={"k": 5})
+    # 1. Initialize models
+    parser_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0).with_structured_output(AgentCommand)
+    executor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
+    supervisor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
 
-knowledge_base_tool = create_retriever_tool(
-    retriever,
-    "knowledge_base_search",
-    "Searches and returns information from the user's knowledge base. Use this for any questions that require context from provided documents."
-)
-tools = [knowledge_base_tool, get_current_time]
+    # 2. Initialize Retriever Tool
+    embeddings = VertexAIEmbeddings(model_name="textembedding-gecko@003")
+    db = Chroma(persist_directory=VECTOR_STORE_DIR, embedding_function=embeddings)
+    retriever = db.as_retriever(search_kwargs={"k": 5})
 
-# 3. Create the Executor Agent
-# This agent's job is to use tools to fulfill a specific task
-executor_prompt = hub.pull("hwchase17/openai-tools-agent")
-agent = create_tool_calling_agent(executor_llm, tools, executor_prompt)
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    knowledge_base_tool = create_retriever_tool(
+        retriever,
+        "knowledge_base_search",
+        "Searches and returns information from the user's knowledge base. Use this for any questions that require context from provided documents."
+    )
+    tools = [knowledge_base_tool, get_current_time]
 
-logger.info("Agent components initialized.")
+    # 3. Create the Executor Agent
+    executor_prompt = hub.pull("hwchase17/openai-tools-agent")
+    agent = create_tool_calling_agent(executor_llm, tools, executor_prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    
+    # Store components in the global dictionary
+    AI_COMPONENTS["parser_llm"] = parser_llm
+    AI_COMPONENTS["agent_executor"] = agent_executor
+    AI_COMPONENTS["supervisor_llm"] = supervisor_llm
+    
+    logger.info("AI components initialization complete.")
 
 
 # --- CORE AGENT LOGIC ---
@@ -95,6 +114,7 @@ def parse_command(user_input: str) -> BaseModel:
     Now, provide the output in the required JSON format.
     """
     
+    parser_llm = AI_COMPONENTS["parser_llm"]
     command = parser_llm.invoke(parser_prompt)
     logger.info(f"Parsed command: {command.dict()}")
     return command
@@ -114,8 +134,9 @@ def execute_command(command: BaseModel) -> str:
     
     if isinstance(command, SearchKnowledgeBase):
         # If the task is to search the knowledge base, invoke the agent executor with the query
+        agent_executor = AI_COMPONENTS["agent_executor"]
         result = agent_executor.invoke({"input": command.query})
-        return result.get("output", "I could not find an answer.")
+        return result.get("output", "I found some information, but I'm having trouble summarizing it.")
     
     elif isinstance(command, GetCurrentTime):
         # If the task is to get the current time, call the tool directly
@@ -164,6 +185,7 @@ def supervise_output(original_query: str, generated_answer: str) -> str:
     If the answer is unsatisfactory, DO NOT say it's wrong. Instead, provide a corrected and improved version of the answer directly, without any preamble.
     """
     
+    supervisor_llm = AI_COMPONENTS["supervisor_llm"]
     supervisor_feedback = supervisor_llm.invoke(supervisor_prompt).content
     
     if supervisor_feedback.strip().upper() == "APPROVED":
@@ -176,10 +198,10 @@ def supervise_output(original_query: str, generated_answer: str) -> str:
 
 def process_query(user_input: str) -> str:
     """
-    Full end-to-end processing: parse, execute, and supervise.
+    Full end-to-end processing: initialize (if needed), parse, execute, and supervise.
     
     This is the main entry point called by the Telegram bot.
-    Implements the Parse-Execute-Supervise pattern for robust, quality-assured query handling.
+    Implements lazy initialization and the Parse-Execute-Supervise pattern.
     
     Args:
         user_input (str): The user's natural language query
@@ -187,6 +209,10 @@ def process_query(user_input: str) -> str:
     Returns:
         str: The agent's quality-assured response
     """
+    # LAZY INITIALIZATION: Check if components are loaded, if not, load them.
+    if not AI_COMPONENTS:
+        initialize_agent()
+        
     try:
         # Step 1: Parse the user input into a structured command
         parsed_command = parse_command(user_input)
