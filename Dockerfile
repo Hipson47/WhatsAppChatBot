@@ -1,31 +1,33 @@
-# Stage 1: Build stage with dependencies
-FROM python:3.11-slim as builder
-WORKDIR /usr/src/app
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt .
-RUN pip wheel --no-cache-dir --wheel-dir=/usr/src/app/wheels -r requirements.txt
+# Use the official Google Python base image which includes gcloud tools.
+FROM google/cloud-sdk:slim
 
-# Stage 2: Final production stage
-FROM python:3.11-slim
+# Set the working directory
 WORKDIR /app
 
-# Install Python dependencies from wheels
-COPY --from=builder /usr/src/app/wheels /wheels
-RUN pip install --no-cache /wheels/*
+# Install Python and build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3-pip \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code and startup script
-COPY --chown=appuser:appuser ./src ./src
-COPY --chown=appuser:appuser main.py .
-COPY --chown=appuser:appuser startup.sh .
+COPY ./src ./src
+COPY main.py .
+COPY startup.sh .
 RUN chmod +x ./startup.sh
 
+# Create a non-root user and switch to it
+RUN adduser --system --group appuser
+RUN chown -R appuser:appuser /app
 USER appuser
 
 # The PORT environment variable is automatically provided by Cloud Run.
 ENV PORT 8080
 
-# The startup script will be the main command
-CMD ["./startup.sh"]
+# The startup script will be the entrypoint
+ENTRYPOINT ["./startup.sh"]

@@ -1,36 +1,36 @@
 # FINAL PRODUCTION-READY CONFIGURATION
 steps:
-  # Step 1: Build the Docker image
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'Build Image'
-    args:
-      - 'build'
-      - '-t'
-      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
-      - '.'
-
-  # Step 2: Push the image to Artifact Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    id: 'Push Image'
-    args:
-      - 'push'
-      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
-
-  # Step 3: Ingest Knowledge Base
-  # This step runs in a standard Python container, not our application container.
-  # It has access to the source code checkout, including the 'knowledge_base' directory.
+  # Step 1: Ingest Knowledge Base
+  # This step runs first in a temporary environment. It checks out the source code,
+  # installs dependencies, and runs the ingest.py script to build the vector store
+  # and upload it to Google Cloud Storage.
   - name: 'python:3.11-slim'
     id: 'Ingest Knowledge Base'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        pip install -r requirements.txt && \
+        pip install -r requirements.txt
         python ingest.py
     env:
       - 'GCP_PROJECT_ID=${PROJECT_ID}'
-      # This step will use the Cloud Build service account's credentials
-      # to authenticate with Google Cloud services.
+
+  # Step 2: Build the application container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Application Image'
+    args:
+      - 'build'
+      - '--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - '.'
+    # This step depends on the ingestion step completing successfully.
+    wait_for: ['Ingest Knowledge Base']
+
+  # Step 3: Push the application image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Application Image'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
 
   # Step 4: Deploy the application image to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -51,18 +51,20 @@ steps:
       - '${_SERVICE_ACCOUNT_EMAIL}'
       - '--update-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest'
       - '--set-env-vars=GCP_PROJECT_ID=${PROJECT_ID}'
+    # This step depends on the push step completing successfully.
+    wait_for: ['Push Application Image']
 
-# This directive helps Cloud Build track the produced artifacts.
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
 
-# Global options for the build.
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Substitution variables that will be populated by the trigger.
 substitutions:
   _REGION: 'europe-west1'
   _REPO_NAME: 'chatbot-repo'
   _SERVICE_NAME: 'chatbot-service'
   _SERVICE_ACCOUNT_EMAIL: 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
+
+# The entire build process will use the permissions of the default Cloud Build Service Account.
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com'
