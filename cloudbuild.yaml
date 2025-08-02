@@ -32,7 +32,23 @@ steps:
       - 'push'
       - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
 
-  # Step 4: Deploy the application image to Cloud Run
+  # Step 4: Run Integration Tests
+  - name: 'python:3.11-slim'
+    id: 'Run Integration Tests'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        pip install -r tests/requirements.txt
+        pytest tests/integration_test.py -v
+    env:
+      - 'WEBHOOK_URL=${_WEBHOOK_URL}'
+    secretEnv:
+      - 'TELEGRAM_BOT_TOKEN'
+    # This step depends on the push step completing successfully.
+    wait_for: ['Push Application Image']
+
+  # Step 5: Deploy the application image to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Deploy to Cloud Run'
     entrypoint: gcloud
@@ -51,8 +67,8 @@ steps:
       - '${_SERVICE_ACCOUNT_EMAIL}'
       - '--update-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest'
       - '--set-env-vars=GCP_PROJECT_ID=${PROJECT_ID}'
-    # This step depends on the push step completing successfully.
-    wait_for: ['Push Application Image']
+    # This step depends on the integration tests completing successfully.
+    wait_for: ['Run Integration Tests']
 
 images:
   - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
@@ -65,6 +81,14 @@ substitutions:
   _REPO_NAME: 'chatbot-repo'
   _SERVICE_NAME: 'chatbot-service'
   _SERVICE_ACCOUNT_EMAIL: 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
+  # Integration test webhook URL
+  _WEBHOOK_URL: 'https://chatbot-service-157843431191.europe-west1.run.app'
+
+# Secret configuration for integration tests
+availableSecrets:
+  secretManager:
+    - versionName: 'projects/${PROJECT_ID}/secrets/TELEGRAM_BOT_TOKEN/versions/latest'
+      env: 'TELEGRAM_BOT_TOKEN'
 
 # The entire build process will use the permissions of the default Cloud Build Service Account.
 serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com'

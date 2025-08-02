@@ -23,14 +23,15 @@ from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain import hub
 
 from src.core.models import AgentCommand, SearchKnowledgeBase, GetCurrentTime
+from src.core.config import config
 from src.tools.datetime_tools import get_current_time
 
 # --- CONFIGURATION ---
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Note: logging is configured in main.py, don't configure it again here
 logger = logging.getLogger(__name__)
 
 # --- CONSTANTS ---
-VECTOR_STORE_DIR = "vector_store"
+# Configuration is now loaded from src.core.config
 
 # --- LAZY INITIALIZATION SETUP ---
 # This dictionary will hold our initialized AI components.
@@ -53,20 +54,37 @@ def initialize_agent():
     logger.info("Performing one-time initialization of AI components...")
 
     # Validation: Check if vector store exists
-    if not os.path.exists(VECTOR_STORE_DIR):
-        logger.error(f"Vector store directory '{VECTOR_STORE_DIR}' not found.")
+    if not os.path.exists(config.VECTOR_STORE_DIR):
+        logger.error(f"Vector store directory '{config.VECTOR_STORE_DIR}' not found.")
         logger.error("Please run 'python ingest.py' first to create the knowledge base.")
-        raise FileNotFoundError(f"Vector store not found at {VECTOR_STORE_DIR}")
+        raise FileNotFoundError(f"Vector store not found at {config.VECTOR_STORE_DIR}")
 
-    # 1. Initialize models
-    parser_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0).with_structured_output(AgentCommand)
-    executor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.2)
-    supervisor_llm = ChatOpenAI(model_name="gpt-4o-mini", temperature=0.1)
+    # 1. Initialize models with configurable parameters
+    parser_llm = ChatOpenAI(
+        model_name=config.PARSER_MODEL, 
+        temperature=config.PARSER_TEMPERATURE,
+        **config.get_openai_config()
+    ).with_structured_output(AgentCommand)
+    
+    executor_llm = ChatOpenAI(
+        model_name=config.EXECUTOR_MODEL, 
+        temperature=config.EXECUTOR_TEMPERATURE,
+        **config.get_openai_config()
+    )
+    
+    supervisor_llm = ChatOpenAI(
+        model_name=config.SUPERVISOR_MODEL, 
+        temperature=config.SUPERVISOR_TEMPERATURE,
+        **config.get_openai_config()
+    )
 
-    # 2. Initialize Retriever Tool
-    embeddings = VertexAIEmbeddings(model_name="textembedding-gecko@003")
-    db = Chroma(persist_directory=VECTOR_STORE_DIR, embedding_function=embeddings)
-    retriever = db.as_retriever(search_kwargs={"k": 5})
+    # 2. Initialize Retriever Tool with configurable parameters
+    embeddings = VertexAIEmbeddings(
+        model_name=config.EMBEDDING_MODEL,
+        **config.get_vertex_ai_config()
+    )
+    db = Chroma(persist_directory=config.VECTOR_STORE_DIR, embedding_function=embeddings)
+    retriever = db.as_retriever(search_kwargs={"k": config.RETRIEVAL_K})
 
     knowledge_base_tool = create_retriever_tool(
         retriever,
@@ -75,10 +93,10 @@ def initialize_agent():
     )
     tools = [knowledge_base_tool, get_current_time]
 
-    # 3. Create the Executor Agent
+    # 3. Create the Executor Agent with configurable verbosity
     executor_prompt = hub.pull("hwchase17/openai-tools-agent")
     agent = create_tool_calling_agent(executor_llm, tools, executor_prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=config.VERBOSE_LOGGING)
     
     # Store components in the global dictionary
     AI_COMPONENTS["parser_llm"] = parser_llm

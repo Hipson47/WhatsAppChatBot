@@ -8,19 +8,17 @@ from documents in the knowledge base directory.
 import os
 import shutil
 import logging
-from langchain_community.document_loaders import DirectoryLoader, TextLoader, UnstructuredMarkdownLoader
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_google_vertexai import VertexAIEmbeddings
 from langchain_community.vectorstores import Chroma
+from src.core.config import config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-# Constants
-KNOWLEDGE_BASE_DIR = "knowledge_base"
-VECTOR_STORE_DIR = "vector_store"
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 100
+# Constants - using configuration
+KNOWLEDGE_BASE_DIR = "knowledge_base"  # This remains hardcoded as it's the source directory
 
 
 def create_vector_store():
@@ -35,53 +33,51 @@ def create_vector_store():
         return
 
     # Remove old vector store if it exists
-    if os.path.exists(VECTOR_STORE_DIR):
-        logging.info(f"Removing existing vector store at '{VECTOR_STORE_DIR}'")
-        shutil.rmtree(VECTOR_STORE_DIR)
+    if os.path.exists(config.VECTOR_STORE_DIR):
+        logging.info(f"Removing existing vector store at '{config.VECTOR_STORE_DIR}'")
+        shutil.rmtree(config.VECTOR_STORE_DIR)
 
     # Load documents
     logging.info(f"Loading documents from '{KNOWLEDGE_BASE_DIR}'...")
     
-    # Using a generic DirectoryLoader with specific loaders for each file type
-    # This is more robust than a single loader for mixed content.
+    # Load the single consolidated knowledge base file
     loader = DirectoryLoader(
-        KNOWLEDGE_BASE_DIR,
-        glob="**/*",
-        loader_map={
-            ".md": UnstructuredMarkdownLoader,
-            ".txt": TextLoader,
-        },
-        show_progress=True,
-        use_multithreading=True
+        "knowledge_base",
+        glob="wiedza.md",
+        loader_cls=TextLoader,
+        loader_kwargs={"encoding": "utf-8"}
     )
 
     try:
-        documents = loader.load()
-        if not documents:
+        docs = loader.load()
+        if not docs:
             logging.warning("No documents found in the knowledge base.")
             return
-        logging.info(f"Loaded {len(documents)} documents.")
+        logging.info(f"Loaded {len(docs)} documents.")
     except Exception as e:
         logging.error(f"Failed to load documents: {e}")
         return
 
-    # Split documents into chunks
+    # Split documents into chunks using configurable parameters
     logging.info("Splitting documents into chunks...")
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP
+        chunk_size=config.CHUNK_SIZE,
+        chunk_overlap=config.CHUNK_OVERLAP
     )
-    docs = text_splitter.split_documents(documents)
+    docs = text_splitter.split_documents(docs)
     logging.info(f"Split into {len(docs)} chunks.")
 
-    # Initialize the embedding model
+    # Initialize the embedding model with configuration
     logging.info("Initializing embedding model...")
-    embeddings = VertexAIEmbeddings(model_name="textembedding-gecko@003")
+    embeddings = VertexAIEmbeddings(
+        model_name=config.EMBEDDING_MODEL,
+        **config.get_vertex_ai_config()
+    )
 
     # Create and persist the vector store
-    logging.info(f"Creating and persisting vector store at '{VECTOR_STORE_DIR}'...")
+    logging.info(f"Creating and persisting vector store at '{config.VECTOR_STORE_DIR}'...")
     try:
-        db = Chroma.from_documents(docs, embeddings, persist_directory=VECTOR_STORE_DIR)
+        db = Chroma.from_documents(docs, embeddings, persist_directory=config.VECTOR_STORE_DIR)
         logging.info("Vector store created successfully.")
     except Exception as e:
         logging.error(f"Failed to create vector store: {e}")
