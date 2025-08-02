@@ -30,6 +30,10 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--timeout'
+      - '10m'
       - '--service-account'
       - 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
       # Mount secrets: API keys as environment variables, credentials as a file.
