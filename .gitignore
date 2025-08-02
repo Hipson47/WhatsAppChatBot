@@ -209,9 +209,6 @@ models/
 data/
 datasets/
 
-# Exclude knowledge base directory
-/knowledge_base/
-
 # Vector store directory
 /vector_store/
 
