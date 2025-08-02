@@ -1,6 +1,9 @@
-# FINAL, CORRECTED CONFIGURATION
+# This is the definitive, production-ready configuration for the CI/CD pipeline.
+# It explicitly specifies the service account to be used for the entire build process,
+# overriding any incorrect settings in the Cloud Build trigger.
+
 steps:
-  # Step 1: Build the Docker image using the commit SHA as a tag for immutability.
+  # Step 1: Build the Docker image with an immutable tag based on the commit SHA.
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Image'
     args:
@@ -52,3 +55,9 @@ substitutions:
   _REPO_NAME: 'chatbot-repo'
   _SERVICE_NAME: 'chatbot-service'
   _SERVICE_ACCOUNT_EMAIL: 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
+
+# IMPORTANT: This section forces Cloud Build to use its default service account,
+# which has the correct permissions we have set. This overrides any incorrect
+# service account specified in the trigger's UI settings.
+# The ${_PROJECT_NUMBER} variable will be automatically provided by the Cloud Build trigger.
+serviceAccount: 'projects/vortex-ai-user/serviceAccounts/${_PROJECT_NUMBER}@cloudbuild.gserviceaccount.com'
