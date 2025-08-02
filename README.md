@@ -45,6 +45,92 @@ A production-ready, RAG-powered multi-agent Telegram chatbot built with Python a
 - **Code Quality**: Type hints and comprehensive validation
 - **Local Development**: Docker Compose with hot reload
 
+## 🏗️ Production Architecture
+
+### 🔄 Automated RAG Pipeline with GCS
+
+This project implements a **production-grade, automated RAG pipeline** with Google Cloud Storage (GCS) as the persistent storage backend. The architecture decouples the knowledge base from the application container, enabling scalable, automated deployments.
+
+#### 📊 Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AUTOMATED RAG PIPELINE                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  📚 Knowledge Base     ➜    ☁️ GCS Storage     ➜    🤖 Bot      │
+│                                                                 │
+│  1. Local Processing   │   2. Automated Upload  │  3. Runtime    │
+│  • Load documents      │   • Cloud Build runs   │  • Download    │
+│  • Create embeddings   │   • ingest.py script   │  • from GCS    │
+│  • Build vector store  │   • Upload to bucket   │  • on startup  │
+│                       │                        │               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### 🚀 Key Benefits
+
+**🏗️ Infrastructure Scalability:**
+- ✅ **Stateless containers** - No dependency on local storage
+- ✅ **Horizontal scaling** - Multiple instances share same knowledge base
+- ✅ **Zero-downtime deployments** - New versions download updated knowledge
+- ✅ **Cloud-native storage** - Leverages GCS durability and performance
+
+**⚡ Automated Operations:**
+- ✅ **CI/CD Integration** - Knowledge base automatically processed during build
+- ✅ **Version control** - Knowledge base versioned with application code
+- ✅ **No manual steps** - Complete automation from code to production
+- ✅ **Consistent deployments** - Same knowledge base across all environments
+
+**💰 Cost Optimization:**
+- ✅ **Storage efficiency** - GCS cold storage for infrequently accessed data
+- ✅ **Compute optimization** - Knowledge processing only during builds
+- ✅ **Resource sharing** - Single knowledge base serves multiple instances
+
+#### 🔧 Architecture Components
+
+**1. Build-Time Processing (`ingest.py`):**
+```python
+# During Cloud Build:
+# 1. Load documents from knowledge_base/
+# 2. Create vector embeddings using Vertex AI
+# 3. Build ChromaDB vector store locally
+# 4. Upload entire vector store to GCS bucket
+```
+
+**2. Runtime Download (`startup.sh`):**
+```bash
+# During container startup:
+# 1. Check if vector store exists locally
+# 2. Download from GCS bucket if needed
+# 3. Launch application with ready knowledge base
+```
+
+**3. GCS Bucket Structure:**
+```
+gs://{project-id}-knowledge-base/
+└── vector_store/
+    ├── chroma.sqlite3
+    ├── index/
+    │   └── [embeddings data]
+    └── [additional ChromaDB files]
+```
+
+#### 📋 Required Google Cloud Setup
+
+**Storage Bucket Permissions:**
+```bash
+# Grant Cloud Run service account access to GCS
+export PROJECT_ID="vortex-ai-user"
+export SERVICE_ACCOUNT_EMAIL="chatbot-runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/storage.objectAdmin"
+```
+
+**Automatic Bucket Creation:**
+The `ingest.py` script automatically creates the GCS bucket `{project-id}-knowledge-base` if it doesn't exist.
+
 ## 📁 Project Structure
 
 ```
@@ -336,37 +422,78 @@ This pattern ensures type safety, clear intent understanding, and maintainable c
 
 ## 🚀 Production Deployment
 
-### Google Cloud Run Deployment
+### 🔄 Automated RAG Pipeline Deployment
 
-1. **Set up Google Cloud**:
+The new architecture provides **fully automated deployment** with integrated knowledge base processing. No manual steps required!
+
+#### 1. **One-Time Google Cloud Setup**
+
+**🔧 Enable Required APIs:**
    ```bash
-   # Install Google Cloud SDK
-   # Authenticate
+# Authenticate and set project
    gcloud auth login
-   
-   # Set project
-   gcloud config set project YOUR_PROJECT_ID
+gcloud config set project vortex-ai-user
    
    # Enable required APIs
    gcloud services enable run.googleapis.com
    gcloud services enable cloudbuild.googleapis.com
    gcloud services enable aiplatform.googleapis.com
-   ```
+gcloud services enable storage.googleapis.com
+```
 
-2. **Configure secrets**:
-   ```bash
-   # Store secrets in Google Secret Manager
-   echo -n "your_twilio_sid" | gcloud secrets create TWILIO_ACCOUNT_SID --data-file=-
-   echo -n "your_twilio_token" | gcloud secrets create TWILIO_AUTH_TOKEN --data-file=-
-   echo -n "your_openai_key" | gcloud secrets create OPENAI_API_KEY --data-file=-
-   ```
+**🔑 Configure Secrets:**
+```bash
+# Store API keys in Google Secret Manager
+echo -n "your_telegram_bot_token" | gcloud secrets create TELEGRAM_BOT_TOKEN --data-file=-
+echo -n "your_openai_api_key" | gcloud secrets create OPENAI_API_KEY --data-file=-
 
-3. **Deploy using Cloud Build**:
+# Store service account credentials as JSON
+gcloud secrets create GOOGLE_APPLICATION_CREDENTIALS_JSON --data-file=path/to/service-account-key.json
+```
+
+**👤 Grant Storage Permissions (REQUIRED):**
    ```bash
-   # Submit build
-   gcloud builds submit --config cloudbuild.yaml \
-     --substitutions _REGION=europe-west1,_REPOSITORY_NAME=chatbot-repo
-   ```
+# Grant the runtime service account access to GCS
+export PROJECT_ID="vortex-ai-user"
+export SERVICE_ACCOUNT_EMAIL="chatbot-runtime-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+  --role="roles/storage.objectAdmin"
+```
+
+#### 2. **🚀 Automated Deployment**
+
+**Single Command Deployment:**
+   ```bash
+# Deploy with automated knowledge base processing
+gcloud builds submit --config cloudbuild.yaml
+```
+
+**🔄 What Happens Automatically:**
+1. **📦 Build Container** - Docker image with application + gcloud CLI
+2. **📚 Process Knowledge Base** - Run `ingest.py` to create vector embeddings
+3. **☁️ Upload to GCS** - Store vector database in `{project-id}-knowledge-base` bucket
+4. **🚀 Deploy to Cloud Run** - Launch service with GCS download capability
+
+#### 3. **📊 Deployment Pipeline Features**
+
+**✅ Zero-Configuration Knowledge Base:**
+- ✅ **Automatic processing** during build
+- ✅ **GCS upload** with bucket auto-creation
+- ✅ **Runtime download** on container startup
+- ✅ **Version synchronization** with application code
+
+**⚡ Optimized for Production:**
+- ✅ **Fast container startup** - GCS download in parallel with health checks
+- ✅ **Stateless architecture** - Multiple instances share same knowledge base
+- ✅ **Automatic scaling** - Cloud Run handles traffic spikes
+- ✅ **Zero-downtime updates** - New versions seamlessly replace old ones
+
+**🔒 Enterprise Security:**
+- ✅ **Secret Manager integration** - No hardcoded credentials
+- ✅ **IAM-based access** - Principle of least privilege
+- ✅ **Service account isolation** - Separate accounts for build vs runtime
+- ✅ **Encrypted storage** - GCS encryption at rest and in transit
 
 ### 🚀 **Cloud Run Optimization**
 

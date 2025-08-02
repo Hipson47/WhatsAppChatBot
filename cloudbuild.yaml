@@ -1,32 +1,46 @@
 steps:
-  # 1. Build the Docker image with an immutable tag based on the commit SHA.
+  # Step 1: Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Image'
     args:
       - 'build'
       - '-t'
-      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
       - '.'
 
-  # 2. Push the built image to Google Artifact Registry.
+  # Step 2: Push the image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Image'
     args:
       - 'push'
-      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
 
-  # 3. Deploy the new revision to Cloud Run.
+  # Step 3: Ingest knowledge base to GCS
+  # This step runs the ingest.py script using the image we just built.
+  # It needs access to Google Cloud credentials.
+  - name: '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+    id: 'Ingest Knowledge Base'
+    entrypoint: 'python'
+    args: ['ingest.py']
+    env:
+      - 'GCP_PROJECT_ID=${PROJECT_ID}'
+    # This step needs the runtime service account to access Vertex AI and GCS
+    # Note: Cloud Build uses its own SA to RUN this step, but the code inside
+    # will use the application's SA if GOOGLE_APPLICATION_CREDENTIALS are set.
+    # Ensure the Cloud Build SA has permissions to impersonate the runtime SA.
+
+  # Step 4: Deploy to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Deploy to Cloud Run'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - 'chatbot-service'
+      - '${_SERVICE_NAME}'
       - '--image'
-      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
       - '--region'
-      - 'europe-west1'
+      - '${_REGION}'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
@@ -35,18 +49,21 @@ steps:
       - '--timeout'
       - '10m'
       - '--service-account'
-      - 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
-      # Mount secrets: API keys as environment variables, credentials as a file.
+      - '${_SERVICE_ACCOUNT_EMAIL}'
       - '--update-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest'
       - '--update-secrets=/etc/secrets/google-credentials.json=GOOGLE_APPLICATION_CREDENTIALS_JSON:latest'
+      - '--set-env-vars=GCP_PROJECT_ID=${PROJECT_ID}'
 
-# Track the produced artifact.
 images:
-  - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
 
-# Only Cloud Logging (bez Cloud Storage logs itp.).
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Force Cloud Build to run as its default service account (któremu nadałeś już role).
-serviceAccount: 'projects/vortex-ai-user/serviceAccounts/157843431191@cloudbuild.gserviceaccount.com'
+substitutions:
+  _REGION: 'europe-west1'
+  _REPO_NAME: 'chatbot-repo'
+  _SERVICE_NAME: 'chatbot-service'
+  _SERVICE_ACCOUNT_EMAIL: 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
+
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com'
