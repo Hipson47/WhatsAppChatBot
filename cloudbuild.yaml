@@ -1,63 +1,48 @@
-# This is the definitive, production-ready configuration for the CI/CD pipeline.
-# It explicitly specifies the service account to be used for the entire build process,
-# overriding any incorrect settings in the Cloud Build trigger.
-
 steps:
-  # Step 1: Build the Docker image with an immutable tag based on the commit SHA.
+  # 1. Build the Docker image with an immutable tag based on the commit SHA.
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Build Image'
     args:
       - 'build'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
       - '.'
 
-  # Step 2: Push the built image to Google Artifact Registry.
+  # 2. Push the built image to Google Artifact Registry.
   - name: 'gcr.io/cloud-builders/docker'
     id: 'Push Image'
     args:
       - 'push'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
 
-  # Step 3: Deploy the new revision to Cloud Run.
-  # This uses the correct gcloud builder and proper secret mounting.
+  # 3. Deploy the new revision to Cloud Run.
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'Deploy to Cloud Run'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - '${_SERVICE_NAME}'
+      - 'chatbot-service'
       - '--image'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
       - '--region'
-      - '${_REGION}'
+      - 'europe-west1'
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
       - '--service-account'
-      - '${_SERVICE_ACCOUNT_EMAIL}'
+      - 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
       # Mount secrets: API keys as environment variables, credentials as a file.
       - '--update-secrets=TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest'
       - '--update-secrets=/etc/secrets/google-credentials.json=GOOGLE_APPLICATION_CREDENTIALS_JSON:latest'
-      
-# This directive helps Cloud Build track the produced artifacts.
-images:
-  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
 
-# Global options for the build.
+# Track the produced artifact.
+images:
+  - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
+
+# Only Cloud Logging (bez Cloud Storage logs itp.).
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Substitution variables that will be populated by the trigger or manually.
-substitutions:
-  _REGION: 'europe-west1'
-  _REPO_NAME: 'chatbot-repo'
-  _SERVICE_NAME: 'chatbot-service'
-  _SERVICE_ACCOUNT_EMAIL: 'chatbot-runtime-sa@vortex-ai-user.iam.gserviceaccount.com'
-
-# IMPORTANT: This section forces Cloud Build to use its default service account,
-# which has the correct permissions we have set. This overrides any incorrect
-# service account specified in the trigger's UI settings.
-# The ${_PROJECT_NUMBER} variable will be automatically provided by the Cloud Build trigger.
-serviceAccount: 'projects/vortex-ai-user/serviceAccounts/${_PROJECT_NUMBER}@cloudbuild.gserviceaccount.com'
+# Force Cloud Build to run as its default service account (któremu nadałeś już role).
+serviceAccount: 'projects/vortex-ai-user/serviceAccounts/157843431191@cloudbuild.gserviceaccount.com'
