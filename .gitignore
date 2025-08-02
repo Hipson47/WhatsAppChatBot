@@ -185,9 +185,6 @@ gcp-sa-key.json
 config/
 
 # Knowledge base data
-knowledge_base/*.db
-knowledge_base/*.index
-knowledge_base/embeddings/
 
 # Logs
 *.log
