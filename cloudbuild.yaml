@@ -1,13 +1,20 @@
 # FINAL PRODUCTION-READY CONFIGURATION
 steps:
-  # Step 1 & 2: Build and Push the application container image
+  # Step 1: Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'Build and Push Application Image'
+    id: 'Build Image'
     args:
       - 'build'
-      - '--tag=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO_NAME}/${_SERVICE_NAME}:$SHORT_SHA'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
       - '.'
-      - '--push' # Build and push in one step for efficiency
+
+  # Step 2: Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Image'
+    args:
+      - 'push'
+      - 'europe-west1-docker.pkg.dev/vortex-ai-user/chatbot-repo/chatbot-service:$SHORT_SHA'
 
   # Step 3: Ingest Knowledge Base
   # This step runs in a standard Python container, not our application container.
