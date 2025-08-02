@@ -14,7 +14,7 @@ A production-ready, RAG-powered multi-agent Telegram chatbot built with Python a
 - **📊 Structured Logging**: Professional logging with structured output for monitoring
 - **🔧 Developer Experience**: Modern Python architecture with comprehensive tooling
 
-## 🛠️ Tech Stack 
+## 🛠️ Tech Stack xd
 
 ### Core Framework
 - **Backend**: Python 3.11+ with python-telegram-bot library
